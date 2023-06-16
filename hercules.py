@@ -17,6 +17,9 @@ import re
 import sqlite3
 import numpy as np
 
+def main_page():
+    st.markdown('# Hercules Dashboard #')
+
 st.set_page_config(page_title='Hercules Dashboard', page_icon=":chart_with_upwards_trend:",
                     layout='wide'
 )
@@ -30,23 +33,32 @@ def sorted_alphanumeric(data):
 #The first time the program runs, we want to create a folder with an
 #initialization file where we can store the default filepath to
 #where the data lives.  On subsequent runs, we want to read the ini file
-init_file = Path("C:\MKS\Herc_dash\ini.txt")
-if init_file.is_file():
-    pathtxt = Path(init_file).read_text()
-else:
-    if not os.path.exists(Path('C:\MKS\Herc_dash')):
-        os.makedirs(Path('C:\MKS\Herc_dash'))
-    with open(os.path.join("C:\MKS\Herc_dash", "ini.txt"), "w") as ini_file:
-        ini_file.write('')
-    pathtxt = ''
-    
+#init_file = Path("C:/MKS/Herc_dash/ini.txt")
+#if init_file.is_file():
+#    pathtxt = Path(init_file).read_text()
+#else:
+#    if not os.path.exists(os.path.normpath('C:/MKS/Herc_dash')):
+#        os.makedirs(os.path.normpath('C:/MKS/Herc_dash'))
+#    with open(os.path.join("C:/MKS/Herc_dash", "ini.txt"), "w") as ini_file:
+#        ini_file.write('')
+#    pathtxt = ''
+
+st.header("Hercules Dashboard") 
 #pathtxt = 'C:\\Users\\David.Kenward\\python sandbox\\test_data\\herc'
-txtpath = st.text_input('Path to data', pathtxt)
+required_filepath = 'C:\\MKS\\Hercules'
+#txtpath = st.text_input('Path to data', pathtxt)
+st.markdown('Please ensure all data are located in the respective Keysight and LabVIEW folders at **C:/MKS/Hercules**')
+
 #st.button("Set Directory")
 
 if st.button("Click here to process new data"):
+    #because we containerized this with docker and it uses a linux kernel
+    #I have to put a little logic here to strip windows path formatting
+    #and replace with linux path formatting, and then the remaining
+    #os.path calls will work just swimmingly.
+    
     #connect to database, search default folder for new data
-    with st.spinner('Initializing Dashboard...'):        
+    with st.spinner('Initializing Dashboard...'):   
         #open the mongodb client
         #client = MongoClient()
         #connect to the hercules db
@@ -65,9 +77,12 @@ if st.button("Click here to process new data"):
             manifest_df = pd.DataFrame(columns=['Processed_dates_lv', 'Processed_dates_ks'])
          
         #search the labview and keysight directories for files
-        location = Path(txtpath)
+        #location = Path(txtpath)
+        location = Path('C:\\MKS\\Hercules')
         labview_files = os.path.join(location, 'LabVIEW')
         keysight_files = os.path.join(location, 'Keysight')
+        #labview_files = os.path.normpath(location / 'LabVIEW')
+        #keysight_files = os.path.normpath(location / 'Keysight')    
         
         #These are the directories with the relevant data
         #note, must be in mm-dd-yyy name format
@@ -79,15 +94,17 @@ if st.button("Click here to process new data"):
         if not manifest_df.empty:
             labview_dates = [labview_dates.remove(d) for d in labview_dates if d in manifest_df.Processed_dates_lv]
             keysight_dates = [keysight_dates.remove(d) for d in keysight_dates if d in manifest_df.Processed_dates_ks]
-                
+        
         for l, k in zip(labview_dates, keysight_dates):
             lv_dict = {}
             ks_dict = {}
             
             lv_data_files = sorted_alphanumeric(os.listdir(os.path.join(labview_files, l)))
+            #lv_data_files = sorted_alphanumeric(os.listdir(labview_files / l))
             lv_dict[l] = [f for f in lv_data_files if f.endswith('.csv')]
             
             ks_data_files = sorted_alphanumeric(os.listdir(os.path.join(keysight_files, k)))
+            #ks_data_files = sorted_alphanumeric(os.listdir(keysight_files / k))
             ks_dict[k] = [f for f in ks_data_files if f.endswith('.csv')]
         
         #keep track of errors we could not handle
@@ -119,7 +136,9 @@ if st.button("Click here to process new data"):
             #get the list of files for lv and ks for each date
             for val in lv_dict[key]:
                 lv_filepaths.append(os.path.join(lv_date_directory, val))
+                #lv_filepaths.append(lv_date_directory / val)
             for val in ks_dict[key]:
+                #ks_filepaths.append(ks_date_directory / val)
                 ks_filepaths.append(os.path.join(ks_date_directory, val))
             
             #remove any file that isn't a .csv file
@@ -201,7 +220,6 @@ if st.button("Click here to process new data"):
   
 con = sqlite3.connect("hercules.db")
 
-@st.cache
 def load_data(con):
     df = pd.read_sql_query("SELECT * FROM Data", con)
     df['Time'] = pd.to_datetime(df['Time'].str.strip(), infer_datetime_format=True)
